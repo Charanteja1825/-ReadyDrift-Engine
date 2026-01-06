@@ -30,9 +30,14 @@ app.use((err, req, res, next) => {
 });
 
 // Health check
-app.get('/health', (req, res) => {
-  res.json({ status: 'ok' });
+app.get("/api/health", (req, res) => {
+  res.json({
+    status: "ok",
+    service: "demo-pro-backend",
+    time: new Date().toISOString()
+  });
 });
+
 
 // Skill Gap Analysis
 app.post('/api/ai/skill-gap', async (req, res) => {

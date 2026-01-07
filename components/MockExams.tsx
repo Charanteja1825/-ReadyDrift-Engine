@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { User, Question, ExamResult } from '../types';
 import { generateExamAPI } from '../services/api';
 import { db } from '../services/db';
@@ -10,7 +10,35 @@ interface MockExamsProps {
   user: User;
 }
 
-const EXAM_TYPES = ['DSA', 'SQL', 'Computer Networks', 'DBMS', 'Operating Systems'];
+const CORE_EXAM_TYPES = ['DSA', 'SQL', 'Computer Networks', 'DBMS', 'Operating Systems'];
+
+// Mapping of interests/skills to exam domains
+const INTEREST_TO_EXAM: Record<string, string> = {
+  'Frontend': 'Frontend Development',
+  'Backend': 'Backend Development',
+  'Fullstack': 'Full Stack Development',
+  'Data Science': 'Data Science & ML',
+  'Machine Learning': 'Data Science & ML',
+  'DevOps': 'DevOps & Cloud',
+  'SRE': 'System Reliability Engineering',
+  'QA': 'Quality Assurance Testing',
+  'JavaScript': 'JavaScript Fundamentals',
+  'TypeScript': 'TypeScript Advanced',
+  'React': 'React & Frontend Frameworks',
+  'Node.js': 'Node.js Backend',
+  'Python': 'Python Programming',
+  'AWS': 'Cloud Computing (AWS)',
+  'Docker': 'Containerization & Docker',
+  'Kubernetes': 'Kubernetes & Orchestration',
+  'System Design': 'System Design',
+  'Microservices': 'Microservices Architecture',
+  'API Design': 'API Design & REST',
+  'Database Design': 'Advanced Database Design',
+  'Aptitude': 'Aptitude & Reasoning',
+  'Reasoning': 'Aptitude & Reasoning',
+  'Quantitative': 'Quantitative Aptitude',
+  'Verbal': 'Verbal Ability'
+};
 
 const MockExams: React.FC<MockExamsProps> = ({ user }) => {
   const [stage, setStage] = useState<'selection' | 'running' | 'results'>('selection');
@@ -24,6 +52,43 @@ const MockExams: React.FC<MockExamsProps> = ({ user }) => {
   const [aiUsageCounter, setAiUsageCounter] = useState(0); // Simulated tracking
   const [finalResult, setFinalResult] = useState<ExamResult | null>(null);
   const [history, setHistory] = useState<ExamResult[]>([]);
+
+  // Compute available exam types from core + interests/skills
+  const availableExamTypes = useMemo(() => {
+    const set = new Set(CORE_EXAM_TYPES);
+    
+    // Add exams from interests
+    if (user.interests && Array.isArray(user.interests)) {
+      user.interests.forEach(interest => {
+        const examType = INTEREST_TO_EXAM[interest];
+        if (examType) set.add(examType);
+      });
+    }
+    
+    // Add exams from skills
+    if (user.skills && Array.isArray(user.skills)) {
+      user.skills.forEach(skill => {
+        const examType = INTEREST_TO_EXAM[skill];
+        if (examType) set.add(examType);
+      });
+    }
+    
+    return Array.from(set).sort();
+  }, [user.interests, user.skills]);
+
+  // Load previous exams when component mounts or user changes
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const h = await db.getExamResults(user.id);
+        if (mounted) setHistory(h || []);
+      } catch (e) {
+        console.error('Failed to load exam history', e);
+      }
+    })();
+    return () => { mounted = false; };
+  }, [user.id]);
   const [codeValues, setCodeValues] = useState<Record<string, string>>({});
   const [consoleOutputs, setConsoleOutputs] = useState<Record<string, string[]>>({});
   const iframeRefs = useRef<Record<string, HTMLIFrameElement | undefined>>({});
@@ -273,25 +338,29 @@ const MockExams: React.FC<MockExamsProps> = ({ user }) => {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {EXAM_TYPES.map((type) => (
-            <div key={type} className="bg-slate-900 border border-slate-800 p-8 rounded-3xl hover:border-indigo-500 transition-all group relative overflow-hidden">
-              {/* background mask */}
-              <div className="absolute -right-20 -top-20 w-56 h-56 rounded-full bg-gradient-to-br from-indigo-600 to-purple-600 opacity-20 blur-3xl pointer-events-none" />
+          {availableExamTypes.map((type) => {
+            const isCore = CORE_EXAM_TYPES.includes(type);
+            return (
+              <div key={type} className={`border p-8 rounded-3xl hover:border-indigo-500 transition-all group relative overflow-hidden ${isCore ? 'bg-slate-900' : 'bg-slate-900/80 border-indigo-500/30'}`}>
+                {/* background mask */}
+                <div className="absolute -right-20 -top-20 w-56 h-56 rounded-full bg-gradient-to-br from-indigo-600 to-purple-600 opacity-20 blur-3xl pointer-events-none" />
 
-              <div className="bg-indigo-600/10 p-4 rounded-2xl w-fit mb-6 group-hover:bg-indigo-600 transition-colors">
-                <Play className="w-8 h-8 text-indigo-500 group-hover:text-white" />
+                <div className="bg-indigo-600/10 p-4 rounded-2xl w-fit mb-6 group-hover:bg-indigo-600 transition-colors">
+                  <Play className="w-8 h-8 text-indigo-500 group-hover:text-white" />
+                </div>
+                <h3 className="text-xl font-bold text-slate-100 mb-2">{type}</h3>
+                {!isCore && <div className="text-xs text-indigo-400 mb-2 font-semibold">Based on your interests</div>}
+                <p className="text-slate-400 text-sm mb-6">Foundational concepts and practical coding implementation.</p>
+                <button
+                  onClick={() => startExam(type)}
+                  disabled={loading}
+                  className="w-full bg-slate-800 hover:bg-slate-700 text-white font-medium py-3 rounded-xl flex items-center justify-center gap-2"
+                  >
+                  {loading && examType === type ? <Loader2 className="animate-spin w-5 h-5" /> : 'Start Mock'}
+                </button>
               </div>
-              <h3 className="text-xl font-bold text-slate-100 mb-2">{type}</h3>
-              <p className="text-slate-400 text-sm mb-6">Foundational concepts and practical coding implementation.</p>
-              <button
-                onClick={() => startExam(type)}
-                disabled={loading}
-                className="w-full bg-slate-800 hover:bg-slate-700 text-white font-medium py-3 rounded-xl flex items-center justify-center gap-2"
-              >
-                {loading && examType === type ? <Loader2 className="animate-spin w-5 h-5" /> : 'Start Mock'}
-              </button>
-            </div>
-          ))}
+            );
+          })}
         </div>
 
         {/* Previous Exams History */}

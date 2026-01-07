@@ -108,6 +108,34 @@ const PublicProfile: React.FC<PublicProfileProps> = ({ userId, currentUserId, on
               <div className="text-xl sm:text-2xl font-bold text-slate-100">{user.name}</div>
               <div className="text-slate-400 text-xs sm:text-sm mt-1 line-clamp-2">{user.interests?.join(' • ')}</div>
               
+              {/* Skills */}
+              {user.skills && user.skills.length > 0 && (
+                <div className="mt-3">
+                  <div className="text-xs font-semibold text-slate-400 mb-1">Skills</div>
+                  <div className="flex flex-wrap gap-1">
+                    {user.skills.map((skill, i) => (
+                      <span key={i} className="bg-indigo-600/20 text-indigo-300 text-xs px-2 py-1 rounded-full">
+                        {skill}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+              
+              {/* Interests */}
+              {user.interests && user.interests.length > 0 && (
+                <div className="mt-2">
+                  <div className="text-xs font-semibold text-slate-400 mb-1">Interests</div>
+                  <div className="flex flex-wrap gap-1">
+                    {user.interests.map((interest, i) => (
+                      <span key={i} className="bg-emerald-600/20 text-emerald-300 text-xs px-2 py-1 rounded-full">
+                        {interest}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+              
               {/* Links - Responsive */}
               <div className="mt-3 flex flex-wrap items-center gap-2 sm:gap-3">
                 {user.linkedin && (

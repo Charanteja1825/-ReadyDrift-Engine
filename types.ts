@@ -10,6 +10,7 @@ export interface User {
   github?: string;
   // Interests and favorites
   interests?: string[];
+  skills?: string[];
   favorites?: string[];
   createdAt: string;
 }

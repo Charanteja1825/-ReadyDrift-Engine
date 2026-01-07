@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { User } from '../types';
 import { db } from '../services/db';
+import { auth } from '../services/firebase';
 import { Copy } from 'lucide-react';
 
 const ShareButton: React.FC<{ userId: string }> = ({ userId }) => {
@@ -38,6 +39,23 @@ const Profile: React.FC<ProfileProps> = ({ user, onUpdate }) => {
   const [interests, setInterests] = useState<string[]>(user.interests || []);
   const [interestInput, setInterestInput] = useState('');
   const [interestSuggestions, setInterestSuggestions] = useState<string[]>([]);
+  const [skills, setSkills] = useState<string[]>(user.skills || []);
+  const [skillInput, setSkillInput] = useState('');
+
+  // Helpers: normalize and add with case-insensitive de-duplication
+  const normalizeEntry = (s: string) => s.trim().replace(/\s+/g, ' ');
+  const addInterest = (raw: string) => {
+    const v = normalizeEntry(raw);
+    if (!v) return;
+    const exists = interests.some(i => i.toLowerCase() === v.toLowerCase());
+    if (!exists) setInterests(prev => [...prev, v]);
+  };
+  const addSkill = (raw: string) => {
+    const v = normalizeEntry(raw);
+    if (!v) return;
+    const exists = skills.some(s => s.toLowerCase() === v.toLowerCase());
+    if (!exists) setSkills(prev => [...prev, v]);
+  };
 
   const POPULAR_ROLES = ['Frontend', 'Backend', 'Fullstack', 'Data Science', 'Machine Learning', 'DevOps', 'SRE', 'QA'];
 
@@ -53,6 +71,39 @@ const Profile: React.FC<ProfileProps> = ({ user, onUpdate }) => {
     })();
     return () => { mounted = false; };
   }, []);
+  useEffect(() => {
+    // If email missing (e.g. just signed in with Google), try to refresh profile from Firestore or fetch from Firebase Auth
+    let mounted = true;
+    (async () => {
+      try {
+        // If user already has email, skip
+        if (user.email) return;
+        
+        // Try to get email from Firebase Auth
+        const firebaseUser = auth.currentUser;
+        if (firebaseUser && firebaseUser.email && mounted) {
+          // Check if we need to persist to Firestore
+          const stored = user.uid ? await db.signinByUID(user.uid) : await db.getUserById(user.id || '');
+          
+          // If stored user doesn't have email but Firebase does, update it
+          if (stored && (!stored.email || stored.email !== firebaseUser.email)) {
+            const updated = await db.updateUser({ uid: user.uid || firebaseUser.uid, email: firebaseUser.email });
+            if (mounted) onUpdate(updated);
+          }
+        } else if (!firebaseUser && (user.uid || user.id)) {
+          // No Firebase user, try Firestore
+          const fetched = user.uid ? await db.signinByUID(user.uid) : await db.getUserById(user.id || '');
+          if (mounted && fetched && fetched.email) {
+            onUpdate(fetched);
+          }
+        }
+      } catch (e) {
+        // ignore
+      }
+    })();
+    return () => { mounted = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user.id, user.uid]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -60,7 +111,7 @@ const Profile: React.FC<ProfileProps> = ({ user, onUpdate }) => {
     setSaving(true);
     setError(null);
     try {
-      const updated = { ...user, name, linkedin, leetcode, github, interests } as User;
+      const updated = { ...user, name, linkedin, leetcode, github, interests, skills } as User;
       // Persist to Firestore
       const saved = await db.updateUser(updated);
       onUpdate(saved);
@@ -105,11 +156,6 @@ const Profile: React.FC<ProfileProps> = ({ user, onUpdate }) => {
         </div>
 
         <div>
-          <label className="block text-sm text-slate-400">Email</label>
-          <p className="mt-1 text-slate-200">{user.email || 'Not provided'}</p>
-        </div>
-
-        <div>
           <label className="block text-sm text-slate-400">Member since</label>
           <p className="mt-1 text-slate-200">{user.createdAt ? new Date(user.createdAt).toLocaleString() : '—'}</p>
         </div>
@@ -143,79 +189,147 @@ const Profile: React.FC<ProfileProps> = ({ user, onUpdate }) => {
 
         {error && <p className="text-red-400">{error}</p>}
 
-        <div>
-          <label className="block text-sm text-slate-400">Interests</label>
-          {editing ? (
-            <div className="mt-2">
-              <div className="flex gap-2 flex-wrap">
-                {interests.map((it, idx) => (
-                  <div key={idx} className="bg-slate-800 px-3 py-1 rounded-full text-sm flex items-center gap-2">
-                    <span>{it}</span>
-                    <button onClick={() => setInterests(prev => prev.filter(p => p !== it))} className="text-slate-400">✕</button>
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm text-slate-400 mb-3">Skills</label>
+            {editing ? (
+              <div className="mt-2 space-y-3">
+                <div className="flex gap-2 items-center">
+                  <input
+                    value={skillInput}
+                    onChange={(e) => { setSkillInput(e.target.value); }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ',') {
+                        e.preventDefault();
+                        addSkill(skillInput);
+                        setSkillInput('');
+                      }
+                    }}
+                    onBlur={() => { addSkill(skillInput); setSkillInput(''); }}
+                    className="flex-1 bg-slate-800 border border-slate-700 rounded px-3 py-2 text-sm"
+                    placeholder="Type skill name and press Enter"
+                  />
+                  <button type="button" onClick={() => { addSkill(skillInput); setSkillInput(''); }} className="px-4 py-2 rounded bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700">Add</button>
+                </div>
+
+                {/* Added Skills Tags */}
+                {skills.length > 0 && (
+                  <div className="flex gap-2 flex-wrap p-3 bg-slate-800/50 rounded-lg border border-slate-700">
+                    {skills.map((it, idx) => (
+                      <div key={idx} className="bg-indigo-600 text-white px-3 py-1 rounded-full text-sm flex items-center gap-2">
+                        <span>{it}</span>
+                        <button onClick={() => setSkills(prev => prev.filter(p => p !== it))} className="hover:text-slate-200">✕</button>
+                      </div>
+                    ))}
                   </div>
-                ))}
-                <input
-                  value={interestInput}
-                  onChange={(e) => { setInterestInput(e.target.value); }}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' || e.key === ',') {
-                      e.preventDefault();
-                      const v = interestInput.trim();
-                      if (v && !interests.includes(v)) setInterests(prev => [...prev, v]);
-                      setInterestInput('');
-                    }
-                  }}
-                  className="bg-slate-800 border border-slate-700 rounded px-3 py-2 text-sm"
-                  placeholder="Add interest and press Enter"
-                />
+                )}
+
+                {/* Suggested Skills */}
+                <div className="space-y-2">
+                  <p className="text-xs text-slate-500 font-semibold uppercase">Quick Add Suggestions</p>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                    {['JavaScript','TypeScript','React','Node.js','Python','AWS','Docker','SQL','Java','C++','Go','Rust'].map(s => (
+                      <button key={s} onClick={() => { addSkill(s); }} className="bg-slate-800 hover:bg-slate-700 px-3 py-2 rounded text-sm text-slate-300 border border-slate-700 hover:border-indigo-600 transition-colors text-center">{s}</button>
+                    ))}
+                  </div>
+                </div>
               </div>
+            ) : (
+              <p className="mt-1 text-slate-200">{user.skills && user.skills.length > 0 ? user.skills.join(', ') : '—'}</p>
+            )}
+          </div>
 
-                    <div className="mt-2 flex gap-2 flex-wrap">
-                {POPULAR_ROLES.map(r => (
-                  <button key={r} onClick={() => { if(!interests.includes(r)) setInterests(prev => [...prev, r]); }} className="bg-slate-800 px-3 py-1 rounded-full text-sm text-slate-300">{r}</button>
-                ))}
+          <div>
+            <label className="block text-sm text-slate-400 mb-3">Interests</label>
+            {editing ? (
+              <div className="mt-2 space-y-3">
+                <div className="flex gap-2 items-center">
+                  <input
+                    value={interestInput}
+                    onChange={(e) => { setInterestInput(e.target.value); }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ',') {
+                        e.preventDefault();
+                        addInterest(interestInput);
+                        setInterestInput('');
+                      }
+                    }}
+                    onBlur={() => { addInterest(interestInput); setInterestInput(''); }}
+                    className="flex-1 bg-slate-800 border border-slate-700 rounded px-3 py-2 text-sm"
+                    placeholder="Type interest name and press Enter"
+                  />
+                  <button type="button" onClick={() => { addInterest(interestInput); setInterestInput(''); }} className="px-4 py-2 rounded bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700">Add</button>
+                </div>
 
-                {interestSuggestions
-                  .filter(s => {
-                    if (!interestInput) return true;
-                    const norm = (str: string) => str.toLowerCase().replace(/[^a-z0-9]/g, '');
-                    const a = norm(s);
-                    const b = norm(interestInput);
-                    // allow substring match or small edit distance
-                    if (a.includes(b) || b.includes(a)) return true;
-                    // fallback to Levenshtein distance <=2
-                    const lev = (x: string, y: string) => {
-                      const m = x.length, n = y.length;
-                      const dp = Array.from({length: m+1}, () => Array(n+1).fill(0));
-                      for (let i=0;i<=m;i++) dp[i][0]=i;
-                      for (let j=0;j<=n;j++) dp[0][j]=j;
-                      for (let i=1;i<=m;i++) for (let j=1;j<=n;j++) dp[i][j] = x[i-1]===y[j-1] ? dp[i-1][j-1] : Math.min(dp[i-1][j]+1, dp[i][j-1]+1, dp[i-1][j-1]+1);
-                      return dp[m][n];
-                    };
-                    return lev(a,b) <= 2;
-                  })
-                  .slice(0,6)
-                  .map(s => (
-                    <button key={s} onClick={() => { if(!interests.includes(s)) setInterests(prev => [...prev, s]); }} className="bg-slate-800 px-3 py-1 rounded-full text-sm text-slate-300">{s}</button>
-                ))}
+                {/* Added Interests Tags */}
+                {interests.length > 0 && (
+                  <div className="flex gap-2 flex-wrap p-3 bg-slate-800/50 rounded-lg border border-slate-700">
+                    {interests.map((it, idx) => (
+                      <div key={idx} className="bg-emerald-600 text-white px-3 py-1 rounded-full text-sm flex items-center gap-2">
+                        <span>{it}</span>
+                        <button onClick={() => setInterests(prev => prev.filter(p => p !== it))} className="hover:text-slate-200">✕</button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Suggested Interests */}
+                <div className="space-y-2">
+                  <p className="text-xs text-slate-500 font-semibold uppercase">Popular Roles</p>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                    {POPULAR_ROLES.map(r => (
+                      <button key={r} onClick={() => { addInterest(r); }} className="bg-slate-800 hover:bg-slate-700 px-3 py-2 rounded text-sm text-slate-300 border border-slate-700 hover:border-emerald-600 transition-colors text-center">{r}</button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Filtered Suggestions from Database */}
+                {interestSuggestions.length > 0 && (
+                  <div className="space-y-2">
+                    <p className="text-xs text-slate-500 font-semibold uppercase">Matching Suggestions</p>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                      {interestSuggestions
+                        .filter(s => {
+                          if (!interestInput) return false; // Only show if user is typing
+                          const norm = (str: string) => str.toLowerCase().replace(/[^a-z0-9]/g, '');
+                          const a = norm(s);
+                          const b = norm(interestInput);
+                          if (a.includes(b) || b.includes(a)) return true;
+                          const lev = (x: string, y: string) => {
+                            const m = x.length, n = y.length;
+                            const dp = Array.from({length: m+1}, () => Array(n+1).fill(0));
+                            for (let i=0;i<=m;i++) dp[i][0]=i;
+                            for (let j=0;j<=n;j++) dp[0][j]=j;
+                            for (let i=1;i<=m;i++) for (let j=1;j<=n;j++) dp[i][j] = x[i-1]===y[j-1] ? dp[i-1][j-1] : Math.min(dp[i-1][j]+1, dp[i][j-1]+1, dp[i-1][j-1]+1);
+                            return dp[m][n];
+                          };
+                          return lev(a,b) <= 2;
+                        })
+                        .slice(0,12)
+                        .map(s => (
+                          <button key={s} onClick={() => { addInterest(s); }} className="bg-slate-800 hover:bg-slate-700 px-3 py-2 rounded text-sm text-slate-300 border border-slate-700 hover:border-emerald-600 transition-colors text-center">{s}</button>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
-            </div>
-          ) : (
-            <p className="mt-1 text-slate-200">{user.interests && user.interests.length > 0 ? user.interests.join(', ') : '—'}</p>
-          )}
-        </div>
+            ) : (
+              <p className="mt-1 text-slate-200">{user.interests && user.interests.length > 0 ? user.interests.join(', ') : '—'}</p>
+            )}
+          </div>
 
-        <div className="flex items-center gap-2 mt-4">
-          {editing ? (
-            <>
-              <button onClick={handleSave} disabled={saving} className="bg-indigo-600 px-4 py-2 rounded">
-                {saving ? 'Saving...' : 'Save'}
-              </button>
-              <button onClick={() => { setEditing(false); setName(user.name || ''); setLinkedin(user.linkedin || ''); setLeetcode(user.leetcode || ''); setGithub(user.github || ''); setInterests(user.interests || []); }} className="px-4 py-2 rounded border">Cancel</button>
-            </>
-          ) : (
-            <button onClick={() => setEditing(true)} className="bg-indigo-600 px-4 py-2 rounded">Edit Profile</button>
-          )}
+          <div className="flex items-center gap-2">
+            {editing ? (
+              <>
+                <button onClick={handleSave} disabled={saving} className="bg-indigo-600 px-4 py-2 rounded">
+                  {saving ? 'Saving...' : 'Save'}
+                </button>
+                <button onClick={() => { setEditing(false); setName(user.name || ''); setLinkedin(user.linkedin || ''); setLeetcode(user.leetcode || ''); setGithub(user.github || ''); setInterests(user.interests || []); setSkills(user.skills || []); setInterestInput(''); setSkillInput(''); }} className="px-4 py-2 rounded border">Cancel</button>
+              </>
+            ) : (
+              <button onClick={() => setEditing(true)} className="bg-indigo-600 px-4 py-2 rounded">Edit Profile</button>
+            )}
+          </div>
         </div>
       </div>
     </section>

@@ -370,6 +370,7 @@ export const db = {
         if (user.leetcode !== undefined) dataToUpdate.leetcode = user.leetcode;
         if (user.github !== undefined) dataToUpdate.github = user.github;
         if (user.interests !== undefined) dataToUpdate.interests = user.interests;
+        if (user.skills !== undefined) dataToUpdate.skills = user.skills;
         if (user.favorites !== undefined) dataToUpdate.favorites = user.favorites;
 
         await updateDoc(docRef, dataToUpdate);
@@ -388,6 +389,7 @@ export const db = {
       linkedin: user.linkedin || '',
       leetcode: user.leetcode || '',
       github: user.github || '',
+      skills: Array.isArray((user as any).skills) ? (user as any).skills : [],
       createdAt: new Date().toISOString()
     };
     await addDoc(collection(firestore, "users"), newUser);

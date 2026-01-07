@@ -1,7 +1,7 @@
 
 export interface User {
   id: string;
-  uid: string; 
+  uid: string;
   name: string;
   email: string;
   // Optional external profiles
@@ -90,4 +90,14 @@ export interface DailyLog {
   userId: string;
   hours: number;
   date: string;
+}
+
+export interface StudyReminder {
+  id: string;
+  userId: string;
+  title: string;
+  time: string; // HH:MM format
+  days: number[]; // 0-6 (Sunday-Saturday)
+  enabled: boolean;
+  createdAt: string;
 }

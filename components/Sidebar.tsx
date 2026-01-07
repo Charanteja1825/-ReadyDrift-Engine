@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { LayoutDashboard, Target, BookOpen, Mic2, BarChart2, LogOut, GraduationCap, User, X, Star } from 'lucide-react';
+import { LayoutDashboard, Target, BookOpen, Mic2, BarChart2, LogOut, GraduationCap, User, X, Star, Bell } from 'lucide-react';
 
 interface SidebarProps {
   currentTab: string;
@@ -11,14 +11,20 @@ interface SidebarProps {
 }
 
 const Sidebar: React.FC<SidebarProps> = ({ currentTab, setTab, onLogout, isOpen = false, onClose }) => {
-  const menuItems = [
-    { id: 'profile', label: 'Profile', icon: User },
+  // Main features group
+  const mainMenuItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
-    { id: 'skill-gap', label: 'Skill Gap', icon: Target },
     { id: 'mock-exams', label: 'Mock Exams', icon: BookOpen },
     { id: 'mock-interviews', label: 'Mock Interviews', icon: Mic2 },
     { id: 'drift-analyzer', label: 'Drift Analyzer', icon: BarChart2 },
+    { id: 'skill-gap', label: 'Skill Gap', icon: Target },
+  ];
+
+  // User section group
+  const userMenuItems = [
+    { id: 'profile', label: 'Profile', icon: User },
     { id: 'connections', label: 'Connections', icon: Star },
+    { id: 'reminders', label: 'Study Reminders', icon: Bell },
   ];
 
   return (
@@ -35,18 +41,42 @@ const Sidebar: React.FC<SidebarProps> = ({ currentTab, setTab, onLogout, isOpen 
         </div>
 
         <nav className="flex-1 px-4 space-y-2">
-          {menuItems.map((item) => {
+          {/* Main Features Group */}
+          {mainMenuItems.map((item) => {
             const Icon = item.icon;
             const isActive = currentTab === item.id;
             return (
               <button
                 key={item.id}
                 onClick={() => setTab(item.id)}
-                className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${
-                  isActive 
-                    ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20' 
-                    : 'text-slate-600 hover:bg-gray-200 hover:text-slate-900'
-                }`}
+                className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${isActive
+                  ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20'
+                  : 'text-slate-600 hover:bg-gray-200 hover:text-slate-900'
+                  }`}
+              >
+                <Icon className="w-5 h-5" />
+                <span className="font-medium">{item.label}</span>
+              </button>
+            );
+          })}
+
+          {/* Divider */}
+          <div className="py-3">
+            <div className="border-t border-gray-300"></div>
+          </div>
+
+          {/* User Section Group */}
+          {userMenuItems.map((item) => {
+            const Icon = item.icon;
+            const isActive = currentTab === item.id;
+            return (
+              <button
+                key={item.id}
+                onClick={() => setTab(item.id)}
+                className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${isActive
+                  ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20'
+                  : 'text-slate-600 hover:bg-gray-200 hover:text-slate-900'
+                  }`}
               >
                 <Icon className="w-5 h-5" />
                 <span className="font-medium">{item.label}</span>
@@ -84,18 +114,42 @@ const Sidebar: React.FC<SidebarProps> = ({ currentTab, setTab, onLogout, isOpen 
             </div>
 
             <nav className="flex-1 px-4 space-y-2">
-              {menuItems.map((item) => {
+              {/* Main Features Group */}
+              {mainMenuItems.map((item) => {
                 const Icon = item.icon;
                 const isActive = currentTab === item.id;
                 return (
                   <button
                     key={item.id}
                     onClick={() => { setTab(item.id); onClose && onClose(); }}
-                    className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${
-                      isActive 
-                        ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20' 
-                        : 'text-slate-600 hover:bg-gray-200 hover:text-slate-900'
-                    }`}
+                    className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${isActive
+                      ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20'
+                      : 'text-slate-600 hover:bg-gray-200 hover:text-slate-900'
+                      }`}
+                  >
+                    <Icon className="w-5 h-5" />
+                    <span className="font-medium">{item.label}</span>
+                  </button>
+                );
+              })}
+
+              {/* Divider */}
+              <div className="py-3">
+                <div className="border-t border-gray-300"></div>
+              </div>
+
+              {/* User Section Group */}
+              {userMenuItems.map((item) => {
+                const Icon = item.icon;
+                const isActive = currentTab === item.id;
+                return (
+                  <button
+                    key={item.id}
+                    onClick={() => { setTab(item.id); onClose && onClose(); }}
+                    className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${isActive
+                      ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20'
+                      : 'text-slate-600 hover:bg-gray-200 hover:text-slate-900'
+                      }`}
                   >
                     <Icon className="w-5 h-5" />
                     <span className="font-medium">{item.label}</span>

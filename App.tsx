@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { User } from './types';
+import { User, StudyReminder } from './types';
 import Sidebar from './components/Sidebar';
 import Auth from './components/Auth';
 import Dashboard from './components/Dashboard';
@@ -11,7 +11,8 @@ import MockInterviews from './components/MockInterviews';
 import DriftAnalyzer from './components/DriftAnalyzer';
 import Connections from './components/Connections';
 import PublicProfile from './components/PublicProfile';
-import { Menu } from 'lucide-react';
+import StudyReminders from './components/StudyReminders';
+import { Menu, Bell, X } from 'lucide-react';
 import { db } from './services/db';
 
 const App: React.FC = () => {
@@ -19,6 +20,8 @@ const App: React.FC = () => {
   const [currentTab, setCurrentTab] = useState('dashboard');
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [selectedPublicUserId, setSelectedPublicUserId] = useState<string | null>(null);
+  const [showReminderPopup, setShowReminderPopup] = useState(false);
+  const [currentReminder, setCurrentReminder] = useState<StudyReminder | null>(null);
 
   useEffect(() => {
     const savedUser = localStorage.getItem('cr_current_user');
@@ -58,6 +61,56 @@ const App: React.FC = () => {
       // ignore (server-side or test environment)
     }
   }, []);
+
+  // Global reminder checking - runs regardless of current tab
+  useEffect(() => {
+    if (!user) return;
+
+    const checkReminders = () => {
+      const now = new Date();
+      const currentDay = now.getDay();
+      const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+
+      const stored = localStorage.getItem(`reminders_${user.id}`);
+      if (!stored) return;
+
+      const reminders: StudyReminder[] = JSON.parse(stored);
+      reminders.forEach(reminder => {
+        if (reminder.enabled && reminder.days.includes(currentDay) && reminder.time === currentTime) {
+          const lastShownKey = `last_shown_${reminder.id}`;
+          const lastShown = localStorage.getItem(lastShownKey);
+          const oneMinuteAgo = Date.now() - 60000;
+
+          if (!lastShown || parseInt(lastShown) < oneMinuteAgo) {
+            setCurrentReminder(reminder);
+            setShowReminderPopup(true);
+            localStorage.setItem(lastShownKey, Date.now().toString());
+
+            if ('Notification' in window && Notification.permission === 'granted') {
+              const notification = new Notification('📚 Study Time!', {
+                body: reminder.title,
+                icon: '/favicon.ico',
+                badge: '/favicon.ico',
+                tag: reminder.id,
+                requireInteraction: true,
+                silent: false,
+                vibrate: [200, 100, 200]
+              });
+
+              notification.onclick = function () {
+                window.focus();
+                notification.close();
+              };
+            }
+          }
+        }
+      });
+    };
+
+    checkReminders();
+    const interval = setInterval(checkReminders, 30000);
+    return () => clearInterval(interval);
+  }, [user]);
 
   const handleLogin = (newUser: User) => {
     setUser(newUser);
@@ -103,6 +156,8 @@ const App: React.FC = () => {
         return <Connections user={user} onViewProfile={handleViewPublicProfile} onUserUpdated={handleUpdateUser} />;
       case 'profile':
         return <Profile user={user} onUpdate={handleUpdateUser} />;
+      case 'reminders':
+        return <StudyReminders userId={user.id} />;
       case 'public-profile':
         return selectedPublicUserId ? <PublicProfile userId={selectedPublicUserId} currentUserId={user.id} onBack={() => setCurrentTab('connections')} /> : <Dashboard user={user} />;
       default:
@@ -112,9 +167,30 @@ const App: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-white text-slate-900">
-      <Sidebar 
-        currentTab={currentTab} 
-        setTab={setCurrentTab} 
+      {/* Global Reminder Popup */}
+      {showReminderPopup && currentReminder && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl p-8 max-w-md w-full mx-4 animate-bounce">
+            <div className="flex justify-between items-start mb-4">
+              <div className="flex items-center gap-3">
+                <Bell className="w-8 h-8 text-blue-600" />
+                <h3 className="text-2xl font-bold text-slate-900">Study Time! 📚</h3>
+              </div>
+              <button onClick={() => setShowReminderPopup(false)} className="p-2 hover:bg-gray-100 rounded-lg">
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+            <p className="text-xl text-slate-700 mb-6">{currentReminder.title}</p>
+            <button onClick={() => setShowReminderPopup(false)} className="w-full bg-blue-600 text-white py-3 rounded-lg hover:bg-blue-700 font-medium">
+              Got it!
+            </button>
+          </div>
+        </div>
+      )}
+
+      <Sidebar
+        currentTab={currentTab}
+        setTab={setCurrentTab}
         onLogout={handleLogout}
         isOpen={sidebarOpen}
         onClose={() => setSidebarOpen(false)}

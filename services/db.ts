@@ -100,7 +100,7 @@
 //   async getDashboardStats(userId: string) {
 //     const exams = await this.getExamResults(userId);
 //     const logs = await this.getLogs(userId);
-    
+
 //     const avgScore = exams.length > 0 ? exams.reduce((acc, curr) => acc + curr.score, 0) / exams.length : 0;
 //     const studyHoursThisWeek = logs.reduce((acc, curr) => {
 //       const logDate = new Date(curr.date);
@@ -114,7 +114,7 @@
 //     let streak = 0;
 //     let today = new Date();
 //     today.setHours(0,0,0,0);
-    
+
 //     for(let log of sortedLogs) {
 //       const d = new Date(log.date);
 //       d.setHours(0,0,0,0);
@@ -138,8 +138,9 @@ import {
   addDoc,
   getDocs,
   query,
-  where
-  , updateDoc
+  where,
+  updateDoc,
+  doc
 } from "firebase/firestore";
 
 import { firestore } from "./firebase";
@@ -178,6 +179,13 @@ export const db = {
     });
 
     return { ...report, id: docRef.id, createdAt };
+  },
+
+  async updateSkillReport(report: SkillGapReport): Promise<void> {
+    const reportRef = doc(firestore, "skillReports", report.id);
+    // Destructure to avoid sending undefined fields if any, or just send the whole object sans id
+    const { id, ...data } = report;
+    await updateDoc(reportRef, data);
   },
 
   async getSkillReports(userId: string): Promise<SkillGapReport[]> {
@@ -345,14 +353,14 @@ export const db = {
   },
 
   async signinByUID(uid: string): Promise<User | null> {
-  const q = query(
-    collection(firestore, "users"),
-    where("uid", "==", uid)
-  );
-  const snap = await getDocs(q);
-  return snap.empty ? null : (snap.docs[0].data() as User);
-}
-,
+    const q = query(
+      collection(firestore, "users"),
+      where("uid", "==", uid)
+    );
+    const snap = await getDocs(q);
+    return snap.empty ? null : (snap.docs[0].data() as User);
+  }
+  ,
 
   async updateUser(user: Partial<User> & { uid?: string; id?: string }): Promise<User> {
     // Try to find existing user by uid or id

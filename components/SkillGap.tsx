@@ -51,7 +51,7 @@ const SkillGap: React.FC<SkillGapProps> = ({ user }) => {
     try {
       const skillsArray = currentSkills.split(',').map(s => s.trim()).filter(Boolean);
       const analysisData = await generateSkillGapAnalysisAPI(role, skillsArray, prepTime);
-      
+
       const newReport = await db.saveSkillReport({
         userId: user.id,
         targetRole: role,
@@ -171,17 +171,102 @@ const SkillGap: React.FC<SkillGapProps> = ({ user }) => {
               <h2 className="text-xl font-bold">Personalized Roadmap</h2>
             </div>
             <div className="space-y-6 relative border-l border-gray-300 pl-6 ml-3">
-              {report.roadmap.map((phase, i) => (
-                <div key={i} className="relative">
-                  <div className="absolute -left-[31px] top-1.5 w-3 h-3 rounded-full bg-blue-600 ring-4 ring-blue-100" />
-                  <h4 className="font-bold text-slate-900">{phase.phase} <span className="text-slate-600 font-normal ml-2">({phase.duration})</span></h4>
-                  <ul className="mt-2 space-y-1">
-                    {phase.topics.map((t, j) => (
-                      <li key={j} className="text-sm text-slate-600">• {t}</li>
-                    ))}
-                  </ul>
-                </div>
-              ))}
+              {report.roadmap.map((phase, i) => {
+                const deadlineDate = phase.deadline ? new Date(phase.deadline) : null;
+                const daysLeft = deadlineDate ? Math.ceil((deadlineDate.getTime() - new Date().getTime()) / (1000 * 3600 * 24)) : null;
+                const isNear = daysLeft !== null && daysLeft <= 3 && daysLeft >= 0;
+                const isOverdue = daysLeft !== null && daysLeft < 0;
+
+                return (
+                  <div key={i} className={`relative ${isNear ? 'bg-amber-50 p-4 rounded-xl border border-amber-200 -mx-4' : ''} ${isOverdue ? 'bg-red-50 p-4 rounded-xl border border-red-200 -mx-4' : ''}`}>
+                    <div className={`absolute ${isNear || isOverdue ? '-left-[15px]' : '-left-[31px]'} top-1.5 w-3 h-3 rounded-full ${isOverdue ? 'bg-red-600 ring-red-100' : isNear ? 'bg-amber-600 ring-amber-100' : 'bg-blue-600 ring-blue-100'} ring-4`} />
+
+                    <div className="flex flex-wrap items-start justify-between gap-4">
+                      <div>
+                        <h4 className="font-bold text-slate-900 flex items-center gap-2">
+                          {phase.phase}
+                          {isNear && <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-medium flex items-center gap-1">Due Soon</span>}
+                          {isOverdue && <span className="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded-full font-medium flex items-center gap-1">Overdue</span>}
+                        </h4>
+                        <span className="text-slate-600 font-normal text-sm block mt-1">Estimates: {phase.duration}</span>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-1">
+                          <input
+                            type="date"
+                            className="text-xs bg-white border border-gray-300 rounded-lg px-2 py-1 focus:outline-none focus:border-blue-500 text-slate-600"
+                            value={phase.deadline || ''}
+                            onChange={async (e) => {
+                              const newDeadline = e.target.value;
+                              // Create immutable copy
+                              const updatedRoadmap = [...report.roadmap];
+                              updatedRoadmap[i] = { ...updatedRoadmap[i], deadline: newDeadline };
+                              const updatedReport = { ...report, roadmap: updatedRoadmap };
+
+                              setReport(updatedReport);
+                              // Update in local list as well
+                              setReports(prev => prev.map(r => r.id === updatedReport.id ? updatedReport : r));
+                              // Persist
+                              await db.updateSkillReport(updatedReport);
+                            }}
+                          />
+                          <button
+                            onClick={() => {
+                              if (!phase.deadline) {
+                                alert('Please set a deadline date first!');
+                                return;
+                              }
+                              // Check for existing reminder to avoid duplicates? 
+                              // For simplicity, just add.
+                              if ('Notification' in window && Notification.permission !== 'granted') {
+                                Notification.requestPermission();
+                              }
+
+                              const reminders = JSON.parse(localStorage.getItem(`reminders_${user.id}`) || '[]');
+                              const newReminder = {
+                                id: Date.now().toString(),
+                                userId: user.id,
+                                title: `Finish ${phase.phase} - Skill Gap`,
+                                time: '09:00',
+                                days: [],
+                                date: phase.deadline,
+                                enabled: true,
+                                createdAt: new Date().toISOString()
+                              };
+
+                              localStorage.setItem(`reminders_${user.id}`, JSON.stringify([...reminders, newReminder]));
+                              alert(`✅ Reminder set for ${phase.deadline} at 9:00 AM!`);
+                            }}
+                            title="Set Reminder"
+                            className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                          >
+                            <Search className="w-4 h-4 hidden" /> {/* Dummy hidden icon to keep import valid if needed, but better to import Bell */}
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-bell"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" /><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" /></svg>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+
+                    <ul className="mt-3 space-y-1">
+                      {phase.topics.map((t, j) => (
+                        <li key={j} className="text-sm text-slate-600 flex items-start gap-2">
+                          <span className="mt-1.5 w-1 h-1 rounded-full bg-slate-400 flex-shrink-0" />
+                          <span>{t}</span>
+                        </li>
+                      ))}
+                    </ul>
+
+                    {deadlineDate && (
+                      <div className={`mt-3 text-xs flex items-center gap-1.5 ${isOverdue ? 'text-red-600 font-medium' : isNear ? 'text-amber-600 font-medium' : 'text-slate-500'}`}>
+                        <Calendar className="w-3 h-3" />
+                        {isOverdue ? `Overdue by ${Math.abs(daysLeft!)} days` : `Deadline: ${deadlineDate.toLocaleDateString()}`}
+                        {isNear && ` (${daysLeft} days left)`}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           </div>
 

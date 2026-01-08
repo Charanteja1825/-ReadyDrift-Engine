@@ -15,6 +15,9 @@ const StudyReminders: React.FC<StudyRemindersProps> = ({ userId }) => {
     const [notificationStatus, setNotificationStatus] = useState<string>('');
     const [editingId, setEditingId] = useState<string | null>(null);
 
+    const [date, setDate] = useState('');
+    const [isRecurring, setIsRecurring] = useState(true);
+
     const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
     useEffect(() => {
@@ -89,12 +92,24 @@ const StudyReminders: React.FC<StudyRemindersProps> = ({ userId }) => {
 
     const addReminder = () => {
         if (!title.trim()) return;
+        if (!isRecurring && !date) {
+            alert('Please select a date');
+            return;
+        }
+
+        const reminderData = {
+            title,
+            time,
+            days: isRecurring ? selectedDays : [],
+            date: !isRecurring ? date : undefined,
+            enabled: true
+        };
 
         if (editingId) {
             // Update existing reminder
             saveReminders(reminders.map(r =>
                 r.id === editingId
-                    ? { ...r, title, time, days: selectedDays }
+                    ? { ...r, ...reminderData, days: isRecurring ? selectedDays : [] }
                     : r
             ));
             setEditingId(null);
@@ -103,11 +118,8 @@ const StudyReminders: React.FC<StudyRemindersProps> = ({ userId }) => {
             const newReminder: StudyReminder = {
                 id: Date.now().toString(),
                 userId,
-                title,
-                time,
-                days: selectedDays,
-                enabled: true,
-                createdAt: new Date().toISOString()
+                createdAt: new Date().toISOString(),
+                ...reminderData
             };
             saveReminders([...reminders, newReminder]);
         }
@@ -115,13 +127,23 @@ const StudyReminders: React.FC<StudyRemindersProps> = ({ userId }) => {
         setTitle('');
         setTime('09:00');
         setSelectedDays([1, 2, 3, 4, 5]);
+        setDate('');
+        setIsRecurring(true);
         setShowForm(false);
     };
 
     const editReminder = (reminder: StudyReminder) => {
         setTitle(reminder.title);
         setTime(reminder.time);
-        setSelectedDays(reminder.days);
+        if (reminder.date) {
+            setIsRecurring(false);
+            setDate(reminder.date);
+            setSelectedDays([1, 2, 3, 4, 5]);
+        } else {
+            setIsRecurring(true);
+            setSelectedDays(reminder.days);
+            setDate('');
+        }
         setEditingId(reminder.id);
         setShowForm(true);
     };
@@ -162,14 +184,29 @@ const StudyReminders: React.FC<StudyRemindersProps> = ({ userId }) => {
                 {showForm && (
                     <div className="bg-blue-50 p-4 rounded-xl mb-6 border border-blue-200">
                         <input value={title} onChange={e => setTitle(e.target.value)} placeholder="e.g., Study DSA" className="w-full px-4 py-2 rounded-lg border border-gray-300 mb-3" />
-                        <input type="time" value={time} onChange={e => setTime(e.target.value)} className="w-full px-4 py-2 rounded-lg border border-gray-300 mb-3" />
-                        <div className="flex gap-2 mb-3 flex-wrap">
-                            {days.map((day, idx) => (
-                                <button key={idx} onClick={() => setSelectedDays(prev => prev.includes(idx) ? prev.filter(d => d !== idx) : [...prev, idx])} className={`px-3 py-2 rounded-lg font-medium ${selectedDays.includes(idx) ? 'bg-blue-600 text-white' : 'bg-gray-200 text-slate-600'}`}>
-                                    {day}
-                                </button>
-                            ))}
+
+                        <div className="flex bg-white rounded-lg p-1 border border-gray-300 mb-3 w-fit">
+                            <button onClick={() => setIsRecurring(true)} className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${isRecurring ? 'bg-blue-100 text-blue-700' : 'text-slate-600 hover:bg-gray-50'}`}>Weekly</button>
+                            <button onClick={() => setIsRecurring(false)} className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${!isRecurring ? 'bg-blue-100 text-blue-700' : 'text-slate-600 hover:bg-gray-50'}`}>One-time Date</button>
                         </div>
+
+                        <div className="flex gap-3 mb-3">
+                            <input type="time" value={time} onChange={e => setTime(e.target.value)} className="w-full px-4 py-2 rounded-lg border border-gray-300" />
+                            {!isRecurring && (
+                                <input type="date" value={date} onChange={e => setDate(e.target.value)} className="w-full px-4 py-2 rounded-lg border border-gray-300" min={new Date().toISOString().split('T')[0]} />
+                            )}
+                        </div>
+
+                        {isRecurring && (
+                            <div className="flex gap-2 mb-3 flex-wrap">
+                                {days.map((day, idx) => (
+                                    <button key={idx} onClick={() => setSelectedDays(prev => prev.includes(idx) ? prev.filter(d => d !== idx) : [...prev, idx])} className={`px-3 py-2 rounded-lg font-medium ${selectedDays.includes(idx) ? 'bg-blue-600 text-white' : 'bg-gray-200 text-slate-600'}`}>
+                                        {day}
+                                    </button>
+                                ))}
+                            </div>
+                        )}
+
                         <button onClick={addReminder} className="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700">
                             {editingId ? 'Update Reminder' : 'Save Reminder'}
                         </button>
@@ -183,7 +220,14 @@ const StudyReminders: React.FC<StudyRemindersProps> = ({ userId }) => {
                                 <h3 className="font-bold text-slate-900">{reminder.title}</h3>
                                 <div className="flex items-center gap-2 text-sm text-slate-600 mt-1">
                                     <Clock className="w-4 h-4" />
-                                    {reminder.time} • {reminder.days.map(d => days[d]).join(', ')}
+                                    {reminder.time} •
+                                    {reminder.date ? (
+                                        <span className="font-medium text-blue-600 ml-1">
+                                            {new Date(reminder.date).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })}
+                                        </span>
+                                    ) : (
+                                        <span> {reminder.days.map(d => days[d]).join(', ')}</span>
+                                    )}
                                 </div>
                             </div>
                             <div className="flex items-center gap-2">

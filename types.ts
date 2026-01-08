@@ -29,6 +29,7 @@ export interface SkillGapReport {
     phase: string;
     topics: string[];
     duration: string;
+    deadline?: string;
   }[];
   strategies: {
     phase: string;
@@ -98,6 +99,7 @@ export interface StudyReminder {
   title: string;
   time: string; // HH:MM format
   days: number[]; // 0-6 (Sunday-Saturday)
+  date?: string; // YYYY-MM-DD for one-time reminders
   enabled: boolean;
   createdAt: string;
 }

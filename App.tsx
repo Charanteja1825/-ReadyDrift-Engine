@@ -94,8 +94,14 @@ const App: React.FC = () => {
         console.error("Failed to parse reminders", e);
         return;
       }
+      const todayStr = now.toISOString().split('T')[0];
+
       reminders.forEach(reminder => {
-        if (reminder.enabled && reminder.days.includes(currentDay) && reminder.time === currentTime) {
+        const matchesTime = reminder.time === currentTime;
+        const matchesDay = !reminder.date && reminder.days.includes(currentDay);
+        const matchesDate = reminder.date === todayStr;
+
+        if (reminder.enabled && matchesTime && (matchesDay || matchesDate)) {
           const lastShownKey = `last_shown_${reminder.id}`;
           const lastShown = localStorage.getItem(lastShownKey);
           const oneMinuteAgo = Date.now() - 60000;
